@@ -38,12 +38,10 @@ import android.view.WindowInsets;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
-import com.google.android.gms.common.api.ResultCallback;
 import com.google.android.gms.wearable.DataApi;
 import com.google.android.gms.wearable.DataEvent;
 import com.google.android.gms.wearable.DataEventBuffer;
 import com.google.android.gms.wearable.DataItem;
-import com.google.android.gms.wearable.DataItemBuffer;
 import com.google.android.gms.wearable.DataMap;
 import com.google.android.gms.wearable.DataMapItem;
 import com.google.android.gms.wearable.Wearable;
@@ -56,7 +54,8 @@ import java.util.concurrent.TimeUnit;
  * Digital watch face with seconds. In ambient mode, the seconds aren't displayed. On devices with
  * low-bit ambient mode, the text is drawn without anti-aliasing in ambient mode.
  */
-public class SunshineWatchFace extends CanvasWatchFaceService {
+public class SunshineWatchFace extends CanvasWatchFaceService implements DataApi.DataListener,
+        GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener {
     private static final Typeface NORMAL_TYPEFACE =
             Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL);
 
@@ -77,7 +76,62 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
     private static final int MSG_UPDATE_TIME = 0;
 
     @Override
+    public void onConnectionFailed(ConnectionResult connectionResult) {
+        Log.d("Android Wear", "Connection failed");
+
+    }
+    @Override
+    public void onConnectionSuspended(int i) {
+        Log.d("Android Wear", "Connection failed");
+
+    }
+
+    @Override
+    public void onConnected(Bundle bundle) {
+        Log.d("Android Wear ", "connected");
+        Wearable.DataApi.addListener(mGoogleApiClient,this);
+        //Wearable.DataApi.getDataItems(mGoogleApiClient).setResultCallback(this);
+    }
+
+
+    @Override
+    public void onDataChanged(DataEventBuffer dataEvents) {
+        Log.v("SunshineWatchFace", "onDataChanged");
+
+        try{
+            for(DataEvent dataEvent: dataEvents){
+                if(dataEvent.getType() != DataEvent.TYPE_CHANGED){
+                    continue;
+                }
+
+                DataItem dataItem = dataEvent.getDataItem();
+                if(dataItem.getUri().getPath().equals("/weather_update")){
+                    DataMap dataMap = DataMapItem.fromDataItem(dataItem).getDataMap();
+                    minTemp = dataMap.getString("min-temp");
+                    maxTemp = dataMap.getString("max-temp");
+                    weatherImage = dataMap.getInt("weather-image");
+                    Log.v("SunshineWatchFace", minTemp);
+                    Log.v("SunshineWatchFace", maxTemp);
+                }
+            }
+            dataEvents.release();
+            //if(!isInAmbientMode()){
+            //    invalidate();
+            //}
+        }catch (Exception e){
+            Log.v("SunshineWatchFace",e.getMessage());
+        }
+    }
+
+    @Override
     public Engine onCreateEngine() {
+
+        mGoogleApiClient = new GoogleApiClient.Builder(SunshineWatchFace.this)
+                .addApi(Wearable.API)
+                .addConnectionCallbacks(this)
+                .addOnConnectionFailedListener(this)
+                .build();
+        mGoogleApiClient.connect();
         return new Engine();
     }
 
@@ -101,11 +155,7 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
         }
     }
 
-    private class Engine extends CanvasWatchFaceService.Engine implements
-            DataApi.DataListener,
-            GoogleApiClient.ConnectionCallbacks,
-            GoogleApiClient.OnConnectionFailedListener,
-            ResultCallback<DataItemBuffer>{
+    private class Engine extends CanvasWatchFaceService.Engine {
 
 
 
@@ -133,11 +183,7 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
 
 
 
-            mGoogleApiClient = new GoogleApiClient.Builder(SunshineWatchFace.this)
-                    .addApi(Wearable.API)
-                    .addConnectionCallbacks(this)
-                    .addOnConnectionFailedListener(this)
-                    .build();
+
         }
 
         @Override
@@ -218,72 +264,9 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
 
 
         final Handler mUpdateTimeHandler = new EngineHandler(this);
-        @Override
-        public void onConnected(Bundle bundle) {
-            Log.d("Android Wear ", "connected");
-            Wearable.DataApi.addListener(mGoogleApiClient,this);
-            Wearable.DataApi.getDataItems(mGoogleApiClient).setResultCallback(this);
-        }
-
-        @Override
-        public void onConnectionFailed(ConnectionResult connectionResult) {
-            Log.d("Android Wear", "Connection failed");
-
-        }
-        @Override
-        public void onConnectionSuspended(int i) {
-            Log.d("Android Wear", "Connection failed");
-
-        }
-
-        @Override
-        public void onResult(DataItemBuffer dataItems) {
-            Log.v("SunshineWatchFace", "onResult");
-       /*     for (DataItem dataItem:dataItems){
-                if (dataItem.getUri().getPath().compareTo("/weather-update") == 0) {
-                    DataMap dataMap = DataMapItem.fromDataItem(dataItem).getDataMap();
-                    minTemp = dataMap.getString("min_temp");
-                    maxTemp = dataMap.getString("max_temp");
-                    weatherImage = dataMap.getInt("weather_image");
-
-                }
-            }
-            dataItems.release();
-            if (isVisible() && !isInAmbientMode()) {
-                invalidate();
-            }*/
-
-        }
 
 
-        @Override
-        public void onDataChanged(DataEventBuffer dataEvents) {
-            Log.v("SunshineWatchFace", "onDataChanged");
 
-            try{
-                for(DataEvent dataEvent: dataEvents){
-                    if(dataEvent.getType() != DataEvent.TYPE_CHANGED){
-                        continue;
-                    }
-
-                    DataItem dataItem = dataEvent.getDataItem();
-                    if(dataItem.getUri().getPath().compareTo("weather_update") == 0){
-                        DataMap dataMap = DataMapItem.fromDataItem(dataItem).getDataMap();
-                        minTemp = dataMap.getString("min-temp");
-                        maxTemp = dataMap.getString("max-temp");
-                        weatherImage = dataMap.getInt("weather-image");
-                        Log.v("SunshineWatchFace", minTemp);
-                        Log.v("SunshineWatchFace", maxTemp);
-                    }
-                }
-                dataEvents.release();
-                if(!isInAmbientMode()){
-                   invalidate();
-                }
-            }catch (Exception e){
-                Log.v("SunshineWatchFace",e.getMessage());
-            }
-        }
 
 
 

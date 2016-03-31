@@ -259,6 +259,7 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
         @Override
         public void onDataChanged(DataEventBuffer dataEvents) {
             Log.v("SunshineWatchFace", "onDataChanged");
+
             try{
                 for(DataEvent dataEvent: dataEvents){
                     if(dataEvent.getType() != DataEvent.TYPE_CHANGED){

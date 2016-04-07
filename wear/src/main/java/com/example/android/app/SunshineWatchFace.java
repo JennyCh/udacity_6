@@ -21,11 +21,14 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.res.Resources;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.Typeface;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
@@ -39,6 +42,7 @@ import android.view.WindowInsets;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.common.api.ResultCallback;
+import com.google.android.gms.wearable.Asset;
 import com.google.android.gms.wearable.DataApi;
 import com.google.android.gms.wearable.DataEvent;
 import com.google.android.gms.wearable.DataEventBuffer;
@@ -48,7 +52,10 @@ import com.google.android.gms.wearable.DataMap;
 import com.google.android.gms.wearable.DataMapItem;
 import com.google.android.gms.wearable.Wearable;
 
+import java.io.InputStream;
 import java.lang.ref.WeakReference;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 
@@ -60,10 +67,11 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
     private static final Typeface NORMAL_TYPEFACE =
             Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL);
 
-    private String minTemp ;
+    private String minTemp;
     private String maxTemp;
     private int weatherImage;
     private GoogleApiClient mGoogleApiClient;
+    private Bitmap bitmap;
 
     /**
      * Update rate in milliseconds for interactive mode. We update once a second since seconds are
@@ -102,7 +110,6 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
     }
 
     private class Engine extends CanvasWatchFaceService.Engine implements
-            DataApi.DataListener,
             GoogleApiClient.ConnectionCallbacks,
             GoogleApiClient.OnConnectionFailedListener,
             ResultCallback<DataItemBuffer>{
@@ -114,7 +121,7 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
             super.onCreate(holder);
 
             setWatchFaceStyle(new WatchFaceStyle.Builder(SunshineWatchFace.this)
-                    .setCardPeekMode(WatchFaceStyle.PEEK_MODE_VARIABLE)
+                    .setCardPeekMode(WatchFaceStyle.PEEK_MODE_SHORT)
                     .setBackgroundVisibility(WatchFaceStyle.BACKGROUND_VISIBILITY_INTERRUPTIVE)
                     .setShowSystemUiTime(false)
                     .setAcceptsTapEvents(true)
@@ -123,10 +130,24 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
             mYOffset = resources.getDimension(R.dimen.digital_y_offset);
 
             mBackgroundPaint = new Paint();
-            mBackgroundPaint.setColor(resources.getColor(R.color.green));
+            mBackgroundPaint.setColor(resources.getColor(R.color.sunshine_primary));
 
-            mTextPaint = new Paint();
-            mTextPaint = createTextPaint(resources.getColor(R.color.digital_text));
+            mTextPaintTime = new Paint();
+            mTextPaintTimeDate = new Paint();
+            mTextPaintTimeTemperature = new Paint();
+            int fontTime = resources.getDimensionPixelSize(R.dimen.digital_date_size);
+            int fontDate = resources.getDimensionPixelSize(R.dimen.digital_time_size);
+            int fontTemperature = resources.getDimensionPixelSize(R.dimen.digital_temperature_size);
+
+            //Log.v("SunshineWatchFace", "FONT-SIZE: " + String.valueOf(fontSizeInPx));
+            mTextPaintTime.setTextSize(fontTime);
+            mTextPaintTimeDate.setTextSize(fontDate);
+            mTextPaintTimeTemperature.setTextSize(fontTemperature);
+
+            int color = resources.getColor(R.color.digital_text);
+            mTextPaintTime = createTextPaint(color);
+            mTextPaintTimeDate = createTextPaint(color);
+            mTextPaintTimeTemperature = createTextPaint(color);
 
             mTime = new Time();
 
@@ -138,6 +159,7 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
                     .addConnectionCallbacks(this)
                     .addOnConnectionFailedListener(this)
                     .build();
+            mGoogleApiClient.connect();
         }
 
         @Override
@@ -159,7 +181,7 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
             if (mAmbient != inAmbientMode) {
                 mAmbient = inAmbientMode;
                 if (mLowBitAmbient) {
-                    mTextPaint.setAntiAlias(!inAmbientMode);
+                    mTextPaintTime.setAntiAlias(!inAmbientMode);
                 }
                 invalidate();
             }
@@ -177,22 +199,42 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
             } else {
                 canvas.drawRect(0, 0, bounds.width(), bounds.height(), mBackgroundPaint);
             }
-
-            // Draw H:MM in ambient mode or H:MM:SS in interactive mode.
             mTime.setToNow();
-            String text = mAmbient
-                    ? String.format("%d:%02d", mTime.hour, mTime.minute)
-                    : String.format("%d:%02d:%02d", mTime.hour, mTime.minute, mTime.second);
-            canvas.drawText(text, mXOffset, mYOffset, mTextPaint);
+            String text = String.format("%d:%02d", mTime.hour, mTime.minute);
+            String dateFormat = "EEE, MMM d yyyy";
+            SimpleDateFormat dt = new SimpleDateFormat(dateFormat);
+
+            String date = dt.format(new Date()).toString();
+            float timeWidth = mTextPaintTime.measureText(text);
+            float dateWidth = mTextPaintTimeDate.measureText(date);
+            mXOffset = timeWidth/2;
+            float mXOffsetDate = dateWidth/2;
+            float x = bounds.centerX() - mXOffset;
+            float x2 = bounds.centerX() - mXOffsetDate;
+            // Draw H:MM in ambient mode or H:MM:SS in interactive mode.
+
+            canvas.drawText(text, x, mYOffset, mTextPaintTime);
 
             //minTemp = "13";
            // maxTemp = "29";
+/*
+            Date mDate = new Date();
+            SimpleDateFormat format = new SimpleDateFormat(mDate, "EEE, MMM d, ''yy");
 
-            String temperature = mAmbient
-                    ? String.format("%s", minTemp + " - " + maxTemp)
-                    : String.format("%s", minTemp + " - " + maxTemp);
-            canvas.drawText(temperature, mXOffset, mYOffset + 100, mTextPaint);
+            String date = format.parse(mDate);*/
 
+
+
+
+            canvas.drawText(date.toUpperCase(), x2, mYOffset + 50, mTextPaintTimeDate);
+
+            String temperature = String.format("%s", minTemp + " - " + maxTemp);
+            canvas.drawText(temperature, mXOffset, mYOffset + 100, mTextPaintTimeTemperature);
+            if(bitmap != null) {
+                canvas.drawBitmap(bitmap, 0, 0, null);
+            }else{
+                Log.v("SunshineWatchFace", "BITMAP IS NULL");
+            }
 
         }
 
@@ -221,7 +263,7 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
         @Override
         public void onConnected(Bundle bundle) {
             Log.d("Android Wear ", "connected");
-            Wearable.DataApi.addListener(mGoogleApiClient,this);
+            Wearable.DataApi.addListener(mGoogleApiClient,mDataListener);
             Wearable.DataApi.getDataItems(mGoogleApiClient).setResultCallback(this);
         }
 
@@ -239,7 +281,7 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
         @Override
         public void onResult(DataItemBuffer dataItems) {
             Log.v("SunshineWatchFace", "onResult");
-       /*     for (DataItem dataItem:dataItems){
+            for (DataItem dataItem:dataItems){
                 if (dataItem.getUri().getPath().compareTo("/weather-update") == 0) {
                     DataMap dataMap = DataMapItem.fromDataItem(dataItem).getDataMap();
                     minTemp = dataMap.getString("min_temp");
@@ -251,46 +293,109 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
             dataItems.release();
             if (isVisible() && !isInAmbientMode()) {
                 invalidate();
-            }*/
-
-        }
-
-
-        @Override
-        public void onDataChanged(DataEventBuffer dataEvents) {
-            Log.v("SunshineWatchFace", "onDataChanged");
-
-            try{
-                for(DataEvent dataEvent: dataEvents){
-                    if(dataEvent.getType() != DataEvent.TYPE_CHANGED){
-                        continue;
-                    }
-
-                    DataItem dataItem = dataEvent.getDataItem();
-                    if(dataItem.getUri().getPath().compareTo("weather_update") == 0){
-                        DataMap dataMap = DataMapItem.fromDataItem(dataItem).getDataMap();
-                        minTemp = dataMap.getString("min-temp");
-                        maxTemp = dataMap.getString("max-temp");
-                        weatherImage = dataMap.getInt("weather-image");
-                        Log.v("SunshineWatchFace", minTemp);
-                        Log.v("SunshineWatchFace", maxTemp);
-                    }
-                }
-                dataEvents.release();
-                if(!isInAmbientMode()){
-                   invalidate();
-                }
-            }catch (Exception e){
-                Log.v("SunshineWatchFace",e.getMessage());
             }
+
         }
 
 
+       DataApi.DataListener mDataListener = new DataApi.DataListener(){
+           @Override
+           public void onDataChanged(DataEventBuffer dataEvents) {
+               Log.v("SunshineWatchFace", "onDataChanged");
+
+               try{
+                   for(DataEvent dataEvent: dataEvents){
+                       Log.v("SunshineWatchFace", "Loop over events");
+                       if(dataEvent.getType() != DataEvent.TYPE_CHANGED){
+                           Log.v("SunshineWatchFace", "no type changed");
+                           continue;
+                       }
+                       Log.v("SunshineWatchFace", "Get Data Items");
+                       DataItem dataItem = dataEvent.getDataItem();
+                       Log.v("SunshineWatchFace", dataItem.getUri().getPath().toString());
+                       Log.v("SunshineWatchFace", String.valueOf(dataItem.getUri().getPath().compareTo("/weather-update") == 0));
+
+                       if(dataItem.getUri().getPath().compareTo("/weather-update") == 0){
+                           Log.v("SunshineWatchFace", "found data items");
+                           DataMapItem dataMap = DataMapItem.fromDataItem(dataEvent.getDataItem());
+                           Asset weatherImage = dataMap.getDataMap().getAsset("weather-image");
+                           //bitmap = loadBitmapFromAsset(weatherImage);
+                           DownloadFilesTask task = new DownloadFilesTask();
+                           task.execute(weatherImage);
+
+
+                           if (bitmap != null){
+                               Log.v("SunshineWatchFace", "BITMAP SUCCESS");
+                           }else{
+                               Log.v("SunshineWatchFace", "BITMAP FAIL");
+                           }
+                           //TODO:figure out how to load them from background thread
+                           //TODO: Do something with Bitmap
+
+                           //int minInteger = Integer.valueOf(dataMap.getString("min-temp"));
+                           minTemp = dataMap.getDataMap().getString("min-temp");
+                           maxTemp = dataMap.getDataMap().getString("max-temp");
+                           //weatherImage = dataMap.getInt("weather-image");
+                           Log.v("SunshineWatchFace", minTemp);
+                           Log.v("SunshineWatchFace", maxTemp);
+                       }
+                   }
+                   dataEvents.release();
+                   if(!isInAmbientMode()){
+                       Log.v("SunshineWatchFace", "Re-draw");
+                       invalidate();
+                   }
+               }catch (Exception e){
+                   Log.v("SunshineWatchFace",e.getMessage());
+               }
+           }
+
+       };
+
+
+        private class DownloadFilesTask extends AsyncTask<Asset, Void, Bitmap> {
+            @Override
+            protected Bitmap doInBackground(Asset... params) {
+                Log.v("SunshineWatchFace", "Doing Background");
+                return loadBitmapFromAsset(params[0]);
+            }
+
+            @Override
+            protected void onPostExecute(Bitmap b) {
+                bitmap = b;
+            }
+
+            public Bitmap loadBitmapFromAsset(Asset asset) {
+                if (asset == null) {
+                    throw new IllegalArgumentException("Asset must be non-null");
+                }
+                ConnectionResult result =
+                        mGoogleApiClient.blockingConnect(5000, TimeUnit.MILLISECONDS);
+                if (!result.isSuccess()) {
+                    return null;
+                }
+                // convert asset into a file descriptor and block until it's ready
+                InputStream assetInputStream = Wearable.DataApi.getFdForAsset(
+                        mGoogleApiClient, asset).await().getInputStream();
+                mGoogleApiClient.disconnect();
+
+                if (assetInputStream == null) {
+                    Log.w("SunshineWatchFace", "Requested an unknown Asset.");
+                    return null;
+                }
+                // decode the stream into a bitmap
+                Log.v("SunshineWatchFace", "Returning Background");
+                return BitmapFactory.decodeStream(assetInputStream);
+            }
+
+        }
 
 
         boolean mRegisteredTimeZoneReceiver = false;
         Paint mBackgroundPaint;
-        Paint mTextPaint;
+        Paint mTextPaintTime;
+        Paint mTextPaintTimeDate;
+        Paint mTextPaintTimeTemperature;
         boolean mAmbient;
         Time mTime;
 
@@ -357,10 +462,16 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
             boolean isRound = insets.isRound();
             mXOffset = resources.getDimension(isRound
                     ? R.dimen.digital_x_offset_round : R.dimen.digital_x_offset);
-            float textSize = resources.getDimension(isRound
-                    ? R.dimen.digital_text_size_round : R.dimen.digital_text_size);
+            float textSizeTime = resources.getDimension(isRound
+                    ? R.dimen.digital_text_size_round : R.dimen.digital_time_size);
+            float textSizeDate = resources.getDimensionPixelSize(R.dimen.digital_date_size);
+            float textSizeTemperature = resources.getDimensionPixelSize(R.dimen.digital_temperature_size);
+            Log.v("SunshineWatchFace", "FONT-SIZE-2: " + String.valueOf(textSizeTime));
+//TODO: fix this font-size part
+            mTextPaintTime.setTextSize(textSizeTime);
+            mTextPaintTimeDate.setTextSize(textSizeDate);
+            mTextPaintTimeTemperature.setTextSize(textSizeTemperature);
 
-            mTextPaint.setTextSize(textSize);
         }
 
 
@@ -385,9 +496,9 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
                     break;
                 case TAP_TYPE_TAP:
                     // The user has completed the tap gesture.
-                    mTapCount++;
+                   /* mTapCount++;
                     mBackgroundPaint.setColor(resources.getColor(mTapCount % 2 == 0 ?
-                            R.color.background : R.color.background2));
+                            R.color.background : R.color.background2));*/
                     break;
             }
             invalidate();
@@ -411,6 +522,7 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
          * only run when we're visible and in interactive mode.
          */
         private boolean shouldTimerBeRunning() {
+
             return isVisible() && !isInAmbientMode();
         }
 
@@ -427,4 +539,5 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
             }
         }
     }
+
 }

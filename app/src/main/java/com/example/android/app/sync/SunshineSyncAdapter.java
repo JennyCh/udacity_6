@@ -39,6 +39,7 @@ import com.example.android.app.muzei.WeatherMuzeiSource;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.common.api.ResultCallback;
+import com.google.android.gms.wearable.Asset;
 import com.google.android.gms.wearable.DataApi;
 import com.google.android.gms.wearable.PutDataMapRequest;
 import com.google.android.gms.wearable.PutDataRequest;
@@ -49,6 +50,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -698,14 +700,20 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
         spe.commit();
     }
 
-    private void syncWatch(String min, String max, int image){
+    private void syncWatch(String min, String max, int weatherId){
         Log.v("SunshineSyncAdapter", "syncWatch");
         String time =  String.valueOf(new Date().getTime());
         PutDataMapRequest putDataMapRequest = PutDataMapRequest.create("/weather-update");
         putDataMapRequest.getDataMap().putLong("time", new Date().getTime()); // MOST IMPORTANT LINE FOR TIMESTAMP
-
-        putDataMapRequest.getDataMap().putString("min-temp", min + time);
-        putDataMapRequest.getDataMap().putString("max-temp", max + time);
+        //Bitmap bm = BitmapFactory.decodeResource(getContext().getResources(), Utility.getArtResourceForWeatherCondition(weatherId));
+        Bitmap bitmap = BitmapFactory.decodeResource(getContext().getResources(), Utility.getArtResourceForWeatherCondition(weatherId));
+        //Asset asset = getContext().getResources().createAssetFromBitmap(bitmap);
+        final ByteArrayOutputStream byteStream = new ByteArrayOutputStream();
+        bitmap.compress(Bitmap.CompressFormat.PNG, 100, byteStream);
+        Asset asset = Asset.createFromBytes(byteStream.toByteArray());
+        putDataMapRequest.getDataMap().putAsset("weather-image", asset);
+        putDataMapRequest.getDataMap().putString("min-temp", min);
+        putDataMapRequest.getDataMap().putString("max-temp", max);
         Log.v("SunshineSyncAdapter", min + time + " " + max + time);
         PutDataRequest request = putDataMapRequest.asPutDataRequest();
 

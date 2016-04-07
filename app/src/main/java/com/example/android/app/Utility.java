@@ -348,6 +348,7 @@ public class Utility {
         return -1;
     }
 
+
     /**
      * Helper method to provide the string according to the weather
      * condition id returned by the OpenWeatherMap call.

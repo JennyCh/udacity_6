@@ -249,7 +249,7 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
                                         String locationSetting)
             throws JSONException {
 
-        Log.v("SunshineSyncAdapter", "Sync");
+        //Log.v("SunshineSyncAdapter", "Sync");
         // Now we have a String representing the complete forecast in JSON Format.
         // Fortunately parsing is easy:  constructor takes the JSON string and converts it
         // into an Object hierarchy for us.
@@ -343,8 +343,8 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
                 double windSpeed;
                 double windDirection;
 
-                double high;
-                double low;
+                int high;
+                int low;
 
                 String description;
                 int weatherId;
@@ -370,15 +370,15 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
                 // Temperatures are in a child object called "temp".  Try not to name variables
                 // "temp" when working with temperature.  It confuses everybody.
                 JSONObject temperatureObject = dayForecast.getJSONObject(OWM_TEMPERATURE);
-                high = temperatureObject.getDouble(OWM_MAX);
-                low = temperatureObject.getDouble(OWM_MIN);
+                high = temperatureObject.getInt(OWM_MAX);
+                low = temperatureObject.getInt(OWM_MIN);
 
                 //if(dateTime == new Date("03/14/2016"))
-                Log.v("MainActivity", "B4 SYNC");
+               // Log.v("MainActivity", "B4 SYNC");
                 if (i == 0) {
                     syncWatch(String.valueOf(high), String.valueOf(low), weatherId);
                 }
-                Log.v("MainActivity", "AFTER SYNC");
+              //  Log.v("MainActivity", "AFTER SYNC");
                 ContentValues weatherValues = new ContentValues();
 
                 weatherValues.put(WeatherContract.WeatherEntry.COLUMN_LOC_KEY, locationId);
@@ -701,7 +701,7 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
     }
 
     private void syncWatch(String min, String max, int weatherId){
-        Log.v("SunshineSyncAdapter", "syncWatch");
+      //  Log.v("SunshineSyncAdapter", "syncWatch");
         String time =  String.valueOf(new Date().getTime());
         PutDataMapRequest putDataMapRequest = PutDataMapRequest.create("/weather-update");
         putDataMapRequest.getDataMap().putLong("time", new Date().getTime()); // MOST IMPORTANT LINE FOR TIMESTAMP
@@ -714,11 +714,11 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
         putDataMapRequest.getDataMap().putAsset("weather-image", asset);
         putDataMapRequest.getDataMap().putString("min-temp", min);
         putDataMapRequest.getDataMap().putString("max-temp", max);
-        Log.v("SunshineSyncAdapter", min + time + " " + max + time);
+       // Log.v("SunshineSyncAdapter", min + time + " " + max + time);
         PutDataRequest request = putDataMapRequest.asPutDataRequest();
 
         if (mGoogleApiClient == null){
-            Log.v("SunshineSyncAdapter", "NOOOOOOOOOOOOOOOOO, life is no good");
+          //  Log.v("SunshineSyncAdapter", "NOOOOOOOOOOOOOOOOO, life is no good");
             return;
         }
 

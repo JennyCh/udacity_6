@@ -3,7 +3,7 @@
     <!-- square watchFace -->
     <dimen name="digital_time_size">40dp</dimen>
     <dimen name="digital_date_size">16dp</dimen>
-    <dimen name="digital_temperature_size">30dp</dimen>
+    <dimen name="digital_temperature_size">26dp</dimen>
 
 
     <dimen name="digital_text_size_round">45dp</dimen>

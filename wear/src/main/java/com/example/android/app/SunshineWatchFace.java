@@ -48,7 +48,6 @@ import com.google.android.gms.wearable.DataEvent;
 import com.google.android.gms.wearable.DataEventBuffer;
 import com.google.android.gms.wearable.DataItem;
 import com.google.android.gms.wearable.DataItemBuffer;
-import com.google.android.gms.wearable.DataMap;
 import com.google.android.gms.wearable.DataMapItem;
 import com.google.android.gms.wearable.Wearable;
 
@@ -199,41 +198,48 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
             } else {
                 canvas.drawRect(0, 0, bounds.width(), bounds.height(), mBackgroundPaint);
             }
-            mTime.setToNow();
+
+            // 1. Make sure time is painted in the middle of the x-axis
+            float middleX = bounds.width() / 2;
+            // 2. Creaate text and measure the size of the text
             String text = String.format("%d:%02d", mTime.hour, mTime.minute);
+            float timeWidth = mTextPaintTime.measureText(text);
+            float positionX = middleX - (timeWidth/2); //half text to make middle
+            // 3. Since date is the longest text, it should be in the middle,
+            // so time should be middle - standard space - time text height
+            float positionY = bounds.centerY() - (mTextPaintTime.getTextSize()/2);
+         //   Log.v("SunshineWatchFace", positionX + " - " + positionY);
+
+            canvas.drawText(text, positionX, positionY, mTextPaintTime);
+            //Log.v("Screen Width and Height", bounds.width() + " "+ bounds.height());
+            mTime.setToNow();
+
             String dateFormat = "EEE, MMM d yyyy";
             SimpleDateFormat dt = new SimpleDateFormat(dateFormat);
 
+
             String date = dt.format(new Date()).toString();
-            float timeWidth = mTextPaintTime.measureText(text);
+
             float dateWidth = mTextPaintTimeDate.measureText(date);
             mXOffset = timeWidth/2;
             float mXOffsetDate = dateWidth/2;
             float x = bounds.centerX() - mXOffset;
             float x2 = bounds.centerX() - mXOffsetDate;
-            // Draw H:MM in ambient mode or H:MM:SS in interactive mode.
 
-            canvas.drawText(text, x, mYOffset, mTextPaintTime);
+            //Date should be the widest, therefore in the center of the screen
+            canvas.drawText(date.toUpperCase(), x2, bounds.height() / 2, mTextPaintTimeDate);
+            canvas.drawLine(bounds.centerX() - 50, (bounds.height() / 2) + 30, bounds.centerX() + 50, (bounds.height() / 2) + 30, mTextPaintTime);
+            //canvas.drawText("---", x2, mYOffset + 80, mTextPaintTimeDate);
 
-            //minTemp = "13";
-           // maxTemp = "29";
-/*
-            Date mDate = new Date();
-            SimpleDateFormat format = new SimpleDateFormat(mDate, "EEE, MMM d, ''yy");
-
-            String date = format.parse(mDate);*/
-
-
-
-
-            canvas.drawText(date.toUpperCase(), x2, mYOffset + 50, mTextPaintTimeDate);
-
-            String temperature = String.format("%s", minTemp + " - " + maxTemp);
-            canvas.drawText(temperature, mXOffset, mYOffset + 100, mTextPaintTimeTemperature);
+            if (minTemp != null && maxTemp != null){
+            String temperature = String.format("%s", minTemp + (char) 0x00B0 + " " + maxTemp + (char) 0x00B0);
+            canvas.drawText(temperature, bounds.centerX() - 30, (bounds.height() / 2) + 50 + mTextPaintTimeTemperature.getTextSize(), mTextPaintTimeTemperature);
+        }
             if(bitmap != null) {
-                canvas.drawBitmap(bitmap, 0, 0, null);
+                canvas.drawBitmap(bitmap, bounds.centerX() - 115, (bounds.height() / 2) + mTextPaintTimeTemperature.getTextSize(), null);
+                //canvas.drawBitmap(bitmap, 0, 0, 0, 0, 100, 100, false, null);
             }else{
-                Log.v("SunshineWatchFace", "BITMAP IS NULL");
+               // Log.v("SunshineWatchFace", "BITMAP IS NULL");
             }
 
         }
@@ -280,13 +286,28 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
 
         @Override
         public void onResult(DataItemBuffer dataItems) {
-            Log.v("SunshineWatchFace", "onResult");
+          //  Log.v("SunshineWatchFace", "onResult 1");
             for (DataItem dataItem:dataItems){
                 if (dataItem.getUri().getPath().compareTo("/weather-update") == 0) {
-                    DataMap dataMap = DataMapItem.fromDataItem(dataItem).getDataMap();
-                    minTemp = dataMap.getString("min_temp");
-                    maxTemp = dataMap.getString("max_temp");
-                    weatherImage = dataMap.getInt("weather_image");
+                   // Log.v("SunshineWatchFace", "found data items 1");
+                    DataMapItem dataMap = DataMapItem.fromDataItem(dataItem);
+                    Asset weatherImage = dataMap.getDataMap().getAsset("weather-image");
+                    //bitmap = loadBitmapFromAsset(weatherImage);
+                    DownloadFilesTask task = new DownloadFilesTask();
+                    task.execute(weatherImage);
+
+
+                  /*  if (bitmap != null){
+                        Log.v("SunshineWatchFace", "BITMAP SUCCESS 1");
+                    }else{
+                      //  Log.v("SunshineWatchFace", "BITMAP FAIL 1");
+                    }*/
+                    //int minInteger = Integer.valueOf(dataMap.getString("min-temp"));
+                    minTemp = dataMap.getDataMap().getString("min-temp");
+                    maxTemp = dataMap.getDataMap().getString("max-temp");
+                    //weatherImage = dataMap.getInt("weather-image");
+                  //  Log.v("SunshineWatchFace", minTemp);
+                  //  Log.v("SunshineWatchFace", maxTemp);
 
                 }
             }
@@ -301,22 +322,22 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
        DataApi.DataListener mDataListener = new DataApi.DataListener(){
            @Override
            public void onDataChanged(DataEventBuffer dataEvents) {
-               Log.v("SunshineWatchFace", "onDataChanged");
+              // Log.v("SunshineWatchFace", "onDataChanged");
 
                try{
                    for(DataEvent dataEvent: dataEvents){
-                       Log.v("SunshineWatchFace", "Loop over events");
+                     //  Log.v("SunshineWatchFace", "Loop over events");
                        if(dataEvent.getType() != DataEvent.TYPE_CHANGED){
-                           Log.v("SunshineWatchFace", "no type changed");
+                          // Log.v("SunshineWatchFace", "no type changed");
                            continue;
                        }
-                       Log.v("SunshineWatchFace", "Get Data Items");
+                      // Log.v("SunshineWatchFace", "Get Data Items");
                        DataItem dataItem = dataEvent.getDataItem();
-                       Log.v("SunshineWatchFace", dataItem.getUri().getPath().toString());
-                       Log.v("SunshineWatchFace", String.valueOf(dataItem.getUri().getPath().compareTo("/weather-update") == 0));
+                     //  Log.v("SunshineWatchFace", dataItem.getUri().getPath().toString());
+                      // Log.v("SunshineWatchFace", String.valueOf(dataItem.getUri().getPath().compareTo("/weather-update") == 0));
 
                        if(dataItem.getUri().getPath().compareTo("/weather-update") == 0){
-                           Log.v("SunshineWatchFace", "found data items");
+                          // Log.v("SunshineWatchFace", "found data items");
                            DataMapItem dataMap = DataMapItem.fromDataItem(dataEvent.getDataItem());
                            Asset weatherImage = dataMap.getDataMap().getAsset("weather-image");
                            //bitmap = loadBitmapFromAsset(weatherImage);
@@ -324,29 +345,26 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
                            task.execute(weatherImage);
 
 
-                           if (bitmap != null){
-                               Log.v("SunshineWatchFace", "BITMAP SUCCESS");
+                          /* if (bitmap != null){
+                             //  Log.v("SunshineWatchFace", "BITMAP SUCCESS");
                            }else{
-                               Log.v("SunshineWatchFace", "BITMAP FAIL");
-                           }
-                           //TODO:figure out how to load them from background thread
-                           //TODO: Do something with Bitmap
-
+                              // Log.v("SunshineWatchFace", "BITMAP FAIL");
+                           }*/
                            //int minInteger = Integer.valueOf(dataMap.getString("min-temp"));
                            minTemp = dataMap.getDataMap().getString("min-temp");
                            maxTemp = dataMap.getDataMap().getString("max-temp");
                            //weatherImage = dataMap.getInt("weather-image");
-                           Log.v("SunshineWatchFace", minTemp);
-                           Log.v("SunshineWatchFace", maxTemp);
+                         //  Log.v("SunshineWatchFace", minTemp);
+                         //  Log.v("SunshineWatchFace", maxTemp);
                        }
                    }
                    dataEvents.release();
                    if(!isInAmbientMode()){
-                       Log.v("SunshineWatchFace", "Re-draw");
+                      // Log.v("SunshineWatchFace", "Re-draw");
                        invalidate();
                    }
                }catch (Exception e){
-                   Log.v("SunshineWatchFace",e.getMessage());
+                  // Log.v("SunshineWatchFace",e.getMessage());
                }
            }
 
@@ -356,13 +374,13 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
         private class DownloadFilesTask extends AsyncTask<Asset, Void, Bitmap> {
             @Override
             protected Bitmap doInBackground(Asset... params) {
-                Log.v("SunshineWatchFace", "Doing Background");
+               // Log.v("SunshineWatchFace", "Doing Background");
                 return loadBitmapFromAsset(params[0]);
             }
 
             @Override
             protected void onPostExecute(Bitmap b) {
-                bitmap = b;
+                bitmap = Bitmap.createScaledBitmap(b,75,75,false);
             }
 
             public Bitmap loadBitmapFromAsset(Asset asset) {
@@ -380,11 +398,11 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
                 mGoogleApiClient.disconnect();
 
                 if (assetInputStream == null) {
-                    Log.w("SunshineWatchFace", "Requested an unknown Asset.");
+                   // Log.v("SunshineWatchFace", "Requested an unknown Asset.");
                     return null;
                 }
                 // decode the stream into a bitmap
-                Log.v("SunshineWatchFace", "Returning Background");
+               // Log.v("SunshineWatchFace", "Returning Background");
                 return BitmapFactory.decodeStream(assetInputStream);
             }
 
@@ -466,8 +484,8 @@ public class SunshineWatchFace extends CanvasWatchFaceService {
                     ? R.dimen.digital_text_size_round : R.dimen.digital_time_size);
             float textSizeDate = resources.getDimensionPixelSize(R.dimen.digital_date_size);
             float textSizeTemperature = resources.getDimensionPixelSize(R.dimen.digital_temperature_size);
-            Log.v("SunshineWatchFace", "FONT-SIZE-2: " + String.valueOf(textSizeTime));
-//TODO: fix this font-size part
+          //  Log.v("SunshineWatchFace", "FONT-SIZE-2: " + String.valueOf(textSizeTime));
+
             mTextPaintTime.setTextSize(textSizeTime);
             mTextPaintTimeDate.setTextSize(textSizeDate);
             mTextPaintTimeTemperature.setTextSize(textSizeTemperature);

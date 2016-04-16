@@ -1,7 +1,13 @@
-Advanced Android Sample App
+Advanced Android Sample App - (Project 6)
 ===================================
 
 Synchronizes weather information from OpenWeatherMap on Android Phones and Tablets. Used in the Udacity Advanced Android course.
+
+<ul>
+<li>Understand the fundamentals of Android Wear.</li>
+<li>Design for multiple watch form factors.</li>
+<li>Communicate between a mobile device and a wearable device.</li>
+<ul>
 
 Pre-requisites
 --------------
